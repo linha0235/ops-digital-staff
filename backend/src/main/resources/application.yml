@@ -1,5 +1,9 @@
 server:
   port: 8080
+  servlet:
+    context-path: /api
+  tomcat:
+    uri-encoding: UTF-8
 
 spring:
   application:
@@ -8,7 +12,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/ops_digital_staff?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: ""
+    password: "1234"
   redis:
     host: localhost
     port: 6379
@@ -29,8 +33,11 @@ knife4j:
   setting:
     language: zh_cn
 
-# AnythingLLM配置
+# AnythingLLM RAG配置 👇 请按照以下步骤获取正确参数：
+# 1. 打开AnythingLLM后台 → Settings → Api Keys → 复制你的API Key
+# 2. 打开任意一个工作区Workspace，浏览器地址栏里URL最后一段就是slug，比如地址是 /workspace/my-ops 那么slug就是 my-ops
+# 注意：默认的default是无效值！替换成你实际的工作区slug
 anything-llm:
   base-url: http://localhost:3001/api
-  api-key: your-api-key-here
-  default-query-workspace: default
+  api-key: DB0ZN0H-G6040SB-KY5AVQK-TXXX7WK
+  default-query-workspace: 4aa9085d-d396-4267-8e0f-7eac2777034e

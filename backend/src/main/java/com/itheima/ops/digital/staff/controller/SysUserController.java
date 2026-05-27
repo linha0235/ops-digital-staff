@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "运维账号管理")
 @RestController
-@RequestMapping("/api/user")
+@RequestMapping("/user")
 public class SysUserController {
 
     @Autowired

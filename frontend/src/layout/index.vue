@@ -3,7 +3,7 @@
     <el-aside width="200px" style="background-color: rgb(23, 45, 66)">
       <div style="color:#fff;font-size:18px;text-align:center;padding:20px 0">运维数字员工</div>
       <el-menu
-          default-active="$route.path"
+          :default-active="$route.path"
           background-color="#304156"
           text-color="#bfcbd9"
           active-text-color="#409EFF"

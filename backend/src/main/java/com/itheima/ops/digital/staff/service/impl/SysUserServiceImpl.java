@@ -33,6 +33,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public void updateUser(SysUser user) {
+        if (StringUtils.isNotBlank(user.getPassword())) {
+            user.setPassword(BCrypt.hashpw(user.getPassword()));
+        }
         updateById(user);
     }
 

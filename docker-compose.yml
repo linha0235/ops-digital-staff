@@ -1,0 +1,59 @@
+version: '3.8'
+services:
+  # MySQL 8.0 数据库服务
+  mysql:
+    image: mysql:8.0.31
+    container_name: ops-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "1234"
+      MYSQL_DATABASE: ops_digital_staff
+      TZ: Asia/Shanghai
+    volumes:
+      - ./backend/src/main/resources/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql-data:/var/lib/mysql
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p1234"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7.2
+    container_name: ops-redis
+    ports:
+      - "6379:6379"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - redis-data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+  # AnythingLLM RAG私有知识库服务
+  anythingllm:
+    image: mintplexlabs/anythingllm:latest
+    container_name: ops-anythingllm
+    ports:
+      - "3001:3001"
+    environment:
+      TZ: Asia/Shanghai
+      DISABLE_TELEMETRY: "true"
+    volumes:
+      - anythingllm-storage:/app/server/storage
+    restart: always
+    depends_on:
+      - mysql
+      - redis
+
+volumes:
+  mysql-data:
+  redis-data:
+  anythingllm-storage:

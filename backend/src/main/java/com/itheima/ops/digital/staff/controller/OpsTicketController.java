@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "运维工单管理")
 @RestController
-@RequestMapping("/api/ticket")
+@RequestMapping("/ticket")
 public class OpsTicketController {
 
     @Autowired
@@ -34,7 +34,7 @@ public class OpsTicketController {
 
     @Operation(summary = "处理工单")
     @PutMapping("/handle/{id}")
-    public Result<?> handle(@PathVariable Long id, Long handlerId, String handleResult) {
+    public Result<?> handle(@PathVariable Long id, @RequestParam Long handlerId, @RequestParam String handleResult) {
         opsTicketService.handleTicket(id, handlerId, handleResult);
         return Result.success();
     }

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS ops_ticket (
     status TINYINT NOT NULL DEFAULT 0 COMMENT '工单状态：0待处理 1处理中 2已完成',
     handler_id BIGINT COMMENT '处理人ID，关联sys_user.id',
     handle_result TEXT COMMENT '处理结果说明',
-   回访_status TINYINT NOT NULL DEFAULT 0 COMMENT '回访状态：0未回访 1已回访',
+    visit_status TINYINT NOT NULL DEFAULT 0 COMMENT '回访状态：0未回访 1已回访',
     satisfaction TINYINT COMMENT '满意度：1-5分',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'

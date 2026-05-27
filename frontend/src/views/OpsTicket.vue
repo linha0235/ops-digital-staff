@@ -32,6 +32,11 @@
   </div>
   <el-dialog v-model="handleDialogVisible" title="工单处理" width="600px">
     <el-form :model="handleForm">
+      <el-form-item label="处理人">
+        <el-select v-model="handleForm.handlerId" placeholder="请选择处理人">
+          <el-option v-for="u in userList" :key="u.id" :label="u.realName" :value="u.id" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="处理结果">
         <el-input v-model="handleForm.handleResult" type="textarea" :rows="4" />
       </el-form-item>
@@ -52,22 +57,40 @@ const pageNum = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const tableData = ref([])
+const userList = ref([])
 const handleDialogVisible = ref(false)
 const handleForm = ref({})
+
 const loadData = async () => {
   const res = await request.get('/ticket/page', {params: {pageNum: pageNum.value, pageSize: pageSize.value, ...queryForm.value}})
   tableData.value = res.data.records
   total.value = res.data.total
 }
+
+const loadUsers = async () => {
+  const res = await request.get('/user/page', {params: {pageNum: 1, pageSize: 100}})
+  userList.value = res.data.records
+}
+
 const openHandleDialog = (row) => {
-  handleForm.value = {id: row.id, handleResult: ''}
+  handleForm.value = {id: row.id, handlerId: null, handleResult: ''}
   handleDialogVisible.value = true
 }
+
 const submitHandle = async () => {
-  await request.put(`/ticket/handle/${handleForm.value.id}`, null, {params: {handlerId: 1, handleResult: handleForm.value.handleResult}})
+  await request.put(`/ticket/handle/${handleForm.value.id}`, null, {
+    params: {
+      handlerId: handleForm.value.handlerId,
+      handleResult: handleForm.value.handleResult
+    }
+  })
   handleDialogVisible.value = false
   ElMessage.success('处理完成')
   loadData()
 }
-onMounted(loadData)
+
+onMounted(() => {
+  loadData()
+  loadUsers()
+})
 </script>
