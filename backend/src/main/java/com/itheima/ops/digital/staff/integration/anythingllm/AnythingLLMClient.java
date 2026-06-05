@@ -93,6 +93,8 @@ public class AnythingLLMClient {
         body.set("model", "qwen2.5:3b");
         body.set("stream", false);
         JSONArray messages = JSONUtil.createArray();
+        messages.add(JSONUtil.createObj().set("role", "system").set("content",
+                "你是一个运维数字员工助手。请以专业、详细、全面的方式回答用户问题，确保回答完整。"));
         messages.add(JSONUtil.createObj().set("role", "user").set("content", userQuestion));
         body.set("messages", messages);
         body.set("options", JSONUtil.createObj()
@@ -152,7 +154,7 @@ public class AnythingLLMClient {
             }
 
             if (contextBuilder.length() > 0) {
-                String systemPrompt = "你是一个运维数字员工助手。请严格引用知识库中的答案回答用户问题。";
+                String systemPrompt = "你是一个运维数字员工助手。请基于知识库参考内容回答用户问题，确保回答完整、专业。";
                 callOllamaStream(systemPrompt,
                         "知识库参考内容：\n" + contextBuilder + "用户问题：" + userQuestion,
                         onChunk, onComplete, onError);
@@ -166,7 +168,7 @@ public class AnythingLLMClient {
         List<com.itheima.ops.digital.staff.entity.OpsFaq> relatedFaqs =
                 localEmbeddingSearch.searchContext(userQuestion, 3);
 
-        String systemPrompt = "你是一个运维数字员工助手。如果用户问题与提供的知识库内容相关，请严格引用知识库中的答案。如果知识库中没有相关信息，请以专业的方式回答用户问题。";
+        String systemPrompt = "你是一个运维数字员工助手。如果用户问题与提供的知识库内容相关，请严格引用知识库中的答案。如果知识库中没有相关信息，请以专业、详细、全面的方式回答用户问题，确保回答完整。";
         String userPrompt;
         if (!relatedFaqs.isEmpty()) {
             StringBuilder ctx = new StringBuilder();
