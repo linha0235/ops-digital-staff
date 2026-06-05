@@ -39,6 +39,9 @@ public class OpsTicketServiceImpl extends ServiceImpl<OpsTicketMapper, OpsTicket
 
     @Override
     public void addSatisfaction(Long ticketId, Integer satisfaction) {
+        if (satisfaction == null || satisfaction < 1 || satisfaction > 5) {
+            throw new IllegalArgumentException("满意度评分需在1-5之间");
+        }
         OpsTicket ticket = new OpsTicket();
         ticket.setId(ticketId);
         ticket.setVisitStatus(1);

@@ -41,3 +41,13 @@ anything-llm:
   base-url: http://localhost:3001/api
   api-key: DB0ZN0H-G6040SB-KY5AVQK-TXXX7WK
   default-query-workspace: 4aa9085d-d396-4267-8e0f-7eac2777034e
+
+# Ollama 本地大模型配置
+ollama:
+  base-url: http://localhost:11434
+  chat-model: qwen2.5:3b
+  embedding-model: bge-m3:latest
+  timeout: 300000
+  num-predict: 2048
+  temperature: 0.7
+  embedding-similarity-threshold: 0.75

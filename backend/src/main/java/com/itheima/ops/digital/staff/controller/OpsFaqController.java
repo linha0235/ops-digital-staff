@@ -8,10 +8,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Tag(name = "运维知识库管理")
@@ -21,6 +23,10 @@ public class OpsFaqController {
 
     @Autowired
     private OpsFaqService opsFaqService;
+
+    @Autowired
+    @Qualifier("chatExecutor")
+    private Executor chatExecutor;
 
     @Operation(summary = "分页查询FAQ列表")
     @GetMapping("/page")
@@ -72,7 +78,11 @@ public class OpsFaqController {
     public SseEmitter chatStream(@RequestBody java.util.Map<String, String> req) {
         String question = req != null ? req.getOrDefault("question", "") : "";
         SseEmitter emitter = new SseEmitter(300000L);
-        new Thread(() -> {
+        if (question.isBlank()) {
+            emitter.complete();
+            return emitter;
+        }
+        chatExecutor.execute(() -> {
             try {
                 opsFaqService.chatQueryStream(question,
                         text -> {
@@ -88,7 +98,7 @@ public class OpsFaqController {
                 log.error("流式问答异常", e);
                 emitter.completeWithError(e);
             }
-        }).start();
+        });
         return emitter;
     }
 

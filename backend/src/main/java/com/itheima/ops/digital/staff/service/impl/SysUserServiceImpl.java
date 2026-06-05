@@ -26,6 +26,15 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     public void createUser(SysUser user) {
+        if (StringUtils.isBlank(user.getUsername())) {
+            throw new IllegalArgumentException("用户名不能为空");
+        }
+        if (StringUtils.isBlank(user.getPassword())) {
+            throw new IllegalArgumentException("密码不能为空");
+        }
+        if (lambdaQuery().eq(SysUser::getUsername, user.getUsername()).count() > 0) {
+            throw new IllegalArgumentException("用户名已存在: " + user.getUsername());
+        }
         user.setPassword(BCrypt.hashpw(user.getPassword()));
         user.setStatus(1);
         save(user);
@@ -36,16 +45,32 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (StringUtils.isNotBlank(user.getPassword())) {
             user.setPassword(BCrypt.hashpw(user.getPassword()));
         }
+        // 检查用户名唯一性（排除自身）
+        if (StringUtils.isNotBlank(user.getUsername())) {
+            long count = lambdaQuery()
+                    .eq(SysUser::getUsername, user.getUsername())
+                    .ne(SysUser::getId, user.getId())
+                    .count();
+            if (count > 0) {
+                throw new IllegalArgumentException("用户名已存在: " + user.getUsername());
+            }
+        }
         updateById(user);
     }
 
     @Override
     public void deleteUser(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException("无效的用户ID");
+        }
         removeById(id);
     }
 
     @Override
     public void freezeUser(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException("无效的用户ID");
+        }
         SysUser user = new SysUser();
         user.setId(id);
         user.setStatus(0);

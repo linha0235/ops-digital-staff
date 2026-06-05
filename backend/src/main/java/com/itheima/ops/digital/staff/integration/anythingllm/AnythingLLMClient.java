@@ -28,6 +28,9 @@ public class AnythingLLMClient {
     @Autowired
     private LocalEmbeddingSearch localEmbeddingSearch;
 
+    @Autowired
+    private OllamaProperties ollamaProperties;
+
     private static final Pattern FAQ_ANSWER_PATTERN =
             Pattern.compile("答案：(.+?)(?:\n问题：|\\Z)", Pattern.DOTALL);
     private static final double HIGH_CONFIDENCE_THRESHOLD = 0.7;
@@ -89,8 +92,9 @@ public class AnythingLLMClient {
      */
     private String callOllamaSync(String userQuestion) {
         log.info("Ollama同步问答: {}", userQuestion);
+        String ollamaUrl = ollamaProperties.getBaseUrl() + "/api/chat";
         JSONObject body = JSONUtil.createObj();
-        body.set("model", "qwen2.5:3b");
+        body.set("model", ollamaProperties.getChatModel());
         body.set("stream", false);
         JSONArray messages = JSONUtil.createArray();
         messages.add(JSONUtil.createObj().set("role", "system").set("content",
@@ -98,14 +102,18 @@ public class AnythingLLMClient {
         messages.add(JSONUtil.createObj().set("role", "user").set("content", userQuestion));
         body.set("messages", messages);
         body.set("options", JSONUtil.createObj()
-                .set("num_predict", 2048)
-                .set("temperature", 0.7));
+                .set("num_predict", ollamaProperties.getNumPredict())
+                .set("temperature", ollamaProperties.getTemperature()));
 
-        try (HttpResponse response = HttpRequest.post("http://localhost:11434/api/chat")
+        try (HttpResponse response = HttpRequest.post(ollamaUrl)
                 .header("Content-Type", "application/json")
-                .timeout(300000)
+                .timeout(ollamaProperties.getTimeout())
                 .body(body.toString())
                 .execute()) {
+            if (response.getStatus() != 200) {
+                log.error("Ollama返回非200: {}", response.getStatus());
+                return "抱歉，大模型服务暂时不可用，请稍后重试。";
+            }
             JSONObject data = JSONUtil.parseObj(response.body());
             JSONObject msg = data.getJSONObject("message");
             return msg != null ? msg.getStr("content", "抱歉，无法获取回答。") : "抱歉，无法获取回答。";
@@ -198,26 +206,32 @@ public class AnythingLLMClient {
                 .timeout(300000)
                 .body(requestBody.toString())
                 .execute();
+        if (response.getStatus() != 200) {
+            log.warn("AnythingLLM返回非200状态码: {}, body: {}", response.getStatus(),
+                    response.body().length() > 200 ? response.body().substring(0, 200) : response.body());
+            throw new RuntimeException("AnythingLLM API error: HTTP " + response.getStatus());
+        }
         return response.body();
     }
 
     private void callOllamaStream(String systemPrompt, String userPrompt,
                                    Consumer<String> onChunk, Runnable onComplete,
                                    Consumer<Exception> onError) {
+        String ollamaUrl = ollamaProperties.getBaseUrl() + "/api/chat";
         JSONObject body = JSONUtil.createObj();
-        body.set("model", "qwen2.5:3b");
+        body.set("model", ollamaProperties.getChatModel());
         body.set("stream", true);
         JSONArray messages = JSONUtil.createArray();
         messages.add(JSONUtil.createObj().set("role", "system").set("content", systemPrompt));
         messages.add(JSONUtil.createObj().set("role", "user").set("content", userPrompt));
         body.set("messages", messages);
         body.set("options", JSONUtil.createObj()
-                .set("num_predict", 2048)
-                .set("temperature", 0.7));
+                .set("num_predict", ollamaProperties.getNumPredict())
+                .set("temperature", ollamaProperties.getTemperature()));
 
-        try (HttpResponse response = HttpRequest.post("http://localhost:11434/api/chat")
+        try (HttpResponse response = HttpRequest.post(ollamaUrl)
                 .header("Content-Type", "application/json")
-                .timeout(300000)
+                .timeout(ollamaProperties.getTimeout())
                 .body(body.toString())
                 .execute();
              BufferedReader reader = new BufferedReader(

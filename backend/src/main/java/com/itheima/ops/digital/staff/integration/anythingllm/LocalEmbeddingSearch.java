@@ -27,21 +27,30 @@ public class LocalEmbeddingSearch {
     @Autowired
     private OpsFaqMapper opsFaqMapper;
 
+    @Autowired
+    private OllamaProperties ollamaProperties;
+
     /** FAQ ID -> 嵌入向量 (1024维) */
     private final Map<Long, float[]> faqEmbeddings = new ConcurrentHashMap<>();
     /** FAQ ID -> OpsFaq */
     private final Map<Long, OpsFaq> faqCache = new ConcurrentHashMap<>();
 
-    private static final double SIMILARITY_THRESHOLD = 0.75;
-    private static final String EMBEDDING_MODEL = "bge-m3:latest";
-    private static final String OLLAMA_EMBED_URL = "http://localhost:11434/api/embeddings";
+    private volatile boolean embeddingsLoaded = false;
+    private static final int MAX_RETRIES = 3;
 
     /**
-     * 启动时加载所有FAQ嵌入
+     * 启动时异步加载FAQ嵌入，不阻塞应用启动
      */
     @PostConstruct
     public void init() {
-        refreshEmbeddings();
+        new Thread(() -> {
+            try {
+                Thread.sleep(5000); // wait for Ollama to be ready
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            refreshEmbeddings();
+        }, "faq-embedding-loader").start();
     }
 
     /**
@@ -128,7 +137,7 @@ public class LocalEmbeddingSearch {
             }
         }
 
-        if (bestFaqId != null && bestScore >= SIMILARITY_THRESHOLD) {
+        if (bestFaqId != null && bestScore >= ollamaProperties.getEmbeddingSimilarityThreshold()) {
             OpsFaq matched = faqCache.get(bestFaqId);
             log.info("本地嵌入匹配成功: score={}, question={}", String.format("%.3f", bestScore), matched.getQuestion());
             return new SearchResult(matched, bestScore);
@@ -175,32 +184,51 @@ public class LocalEmbeddingSearch {
     }
 
     /**
-     * 调用Ollama生成嵌入向量
+     * 调用Ollama生成嵌入向量，带重试
      */
     private float[] getEmbedding(String text) {
-        try {
-            var body = JSONUtil.createObj();
-            body.set("model", EMBEDDING_MODEL);
-            body.set("prompt", text);
+        String url = ollamaProperties.getBaseUrl() + "/api/embeddings";
+        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                var body = JSONUtil.createObj();
+                body.set("model", ollamaProperties.getEmbeddingModel());
+                body.set("prompt", text);
 
-            HttpResponse response = HttpRequest.post(OLLAMA_EMBED_URL)
-                    .header("Content-Type", "application/json")
-                    .timeout(30000)
-                    .body(body.toString())
-                    .execute();
+                HttpResponse response = HttpRequest.post(url)
+                        .header("Content-Type", "application/json")
+                        .timeout(30000)
+                        .body(body.toString())
+                        .execute();
 
-            var json = JSONUtil.parseObj(response.body());
-            var embeddingArray = json.getJSONArray("embedding");
-            if (embeddingArray == null) return null;
+                if (response.getStatus() != 200) {
+                    log.warn("嵌入API返回非200: {}", response.getStatus());
+                    if (attempt < MAX_RETRIES - 1) sleepRetry(attempt);
+                    continue;
+                }
 
-            float[] embedding = new float[embeddingArray.size()];
-            for (int i = 0; i < embeddingArray.size(); i++) {
-                embedding[i] = embeddingArray.getFloat(i).floatValue();
+                var json = JSONUtil.parseObj(response.body());
+                var embeddingArray = json.getJSONArray("embedding");
+                if (embeddingArray == null) return null;
+
+                float[] embedding = new float[embeddingArray.size()];
+                for (int i = 0; i < embeddingArray.size(); i++) {
+                    embedding[i] = embeddingArray.getFloat(i).floatValue();
+                }
+                return embedding;
+            } catch (Exception e) {
+                log.warn("生成嵌入向量失败 (attempt {}/{}): {}", attempt + 1, MAX_RETRIES, e.getMessage());
+                if (attempt < MAX_RETRIES - 1) sleepRetry(attempt);
             }
-            return embedding;
-        } catch (Exception e) {
-            log.error("生成嵌入向量失败", e);
-            return null;
+        }
+        log.error("嵌入向量生成最终失败");
+        return null;
+    }
+
+    private void sleepRetry(int attempt) {
+        try {
+            Thread.sleep(1000L * (attempt + 1));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
