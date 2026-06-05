@@ -14,4 +14,5 @@ public interface OpsFaqService extends IService<OpsFaq> {
                          Runnable onComplete, Consumer<Exception> onError);
     boolean syncFaqToVector(Long faqId);
     Map<String, Object> syncAllFaqToVector();
+    boolean toggleStatus(Long faqId);
 }

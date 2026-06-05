@@ -110,4 +110,23 @@ public class OpsFaqServiceImpl extends ServiceImpl<OpsFaqMapper, OpsFaq> impleme
         }
         return result;
     }
+
+    @Override
+    public boolean toggleStatus(Long faqId) {
+        OpsFaq faq = getById(faqId);
+        if (faq == null) return false;
+        int newStatus = faq.getStatus() != null && faq.getStatus() == 1 ? 0 : 1;
+        faq.setStatus(newStatus);
+        boolean result = updateById(faq);
+        if (result) {
+            if (newStatus == 0) {
+                // 停用：从嵌入缓存中移除
+                localEmbeddingSearch.removeFaq(faqId);
+            } else {
+                // 启用：重新加入嵌入缓存
+                localEmbeddingSearch.addOrUpdateFaq(faq);
+            }
+        }
+        return result;
+    }
 }

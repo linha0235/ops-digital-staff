@@ -18,6 +18,11 @@
           <el-tag :type="row.isSynced === 1 ? 'success' : 'warning'">{{ row.isSynced === 1 ? '已同步' : '未同步' }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="启用" width="70" align="center">
+        <template #default="{row}">
+          <el-switch v-model="row.status" :active-value="1" :inactive-value="0" @change="toggleStatus(row)" />
+        </template>
+      </el-table-column>
       <el-table-column label="操作">
         <template #default="{row}">
           <el-button size="small" @click="openDialog(row)">编辑</el-button>
@@ -75,6 +80,11 @@ const submit = async () => {
 const sync = async (id) => {
   await request.post(`/faq/sync/${id}`)
   ElMessage.success('同步成功')
+  loadData()
+}
+const toggleStatus = async (row) => {
+  await request.put(`/faq/toggle/${row.id}`)
+  ElMessage.success(row.status === 1 ? '已启用' : '已停用')
   loadData()
 }
 const del = async (id) => {

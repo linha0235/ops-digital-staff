@@ -103,4 +103,10 @@ public class OpsFaqController {
     public Result<java.util.Map<String, Object>> syncAll() {
         return Result.success(opsFaqService.syncAllFaqToVector());
     }
+
+    @Operation(summary = "切换FAQ启用/停用状态")
+    @PutMapping("/toggle/{id}")
+    public Result<Boolean> toggle(@PathVariable Long id) {
+        return Result.success(opsFaqService.toggleStatus(id));
+    }
 }

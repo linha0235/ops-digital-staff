@@ -15,6 +15,7 @@ public class OpsFaq {
     private String answer;
     private String category;
     private Integer isSynced;
+    private Integer status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

@@ -3,6 +3,7 @@ package com.itheima.ops.digital.staff.integration.anythingllm;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.itheima.ops.digital.staff.entity.OpsFaq;
 import com.itheima.ops.digital.staff.mapper.OpsFaqMapper;
 import jakarta.annotation.PostConstruct;
@@ -47,7 +48,8 @@ public class LocalEmbeddingSearch {
      * 刷新所有FAQ嵌入向量（新增/修改FAQ后调用）
      */
     public synchronized void refreshEmbeddings() {
-        List<OpsFaq> faqList = opsFaqMapper.selectList(null);
+        List<OpsFaq> faqList = opsFaqMapper.selectList(
+                new LambdaQueryWrapper<OpsFaq>().eq(OpsFaq::getStatus, 1));
         log.info("开始加载FAQ嵌入向量，共{}条", faqList.size());
         faqEmbeddings.clear();
         faqCache.clear();
@@ -71,6 +73,11 @@ public class LocalEmbeddingSearch {
      * 为单个FAQ生成并缓存嵌入
      */
     public void addOrUpdateFaq(OpsFaq faq) {
+        // 只缓存启用的FAQ
+        if (faq.getStatus() != null && faq.getStatus() == 0) {
+            removeFaq(faq.getId());
+            return;
+        }
         try {
             float[] embedding = getEmbedding(faq.getQuestion());
             if (embedding != null) {
@@ -81,6 +88,15 @@ public class LocalEmbeddingSearch {
         } catch (Exception e) {
             log.warn("FAQ[{}]嵌入失败: {}", faq.getId(), e.getMessage());
         }
+    }
+
+    /**
+     * 从嵌入缓存中移除指定FAQ（停用时调用）
+     */
+    public void removeFaq(Long faqId) {
+        faqEmbeddings.remove(faqId);
+        faqCache.remove(faqId);
+        log.info("FAQ[{}]已从嵌入缓存移除", faqId);
     }
 
     /**
