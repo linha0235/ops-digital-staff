@@ -146,6 +146,10 @@ ops-digital-staff/
 │           └── Chat.vue         # 智能问答（SSE 流式 + 打字机动画）
 ├── docker-compose.yml           # 完整中间件编排
 ├── docker-compose-light.yml     # 轻量编排（仅 MySQL + Redis）
+├── docs/                         # 项目文档
+│   ├── 软件测试文档.md            # 测试用例与结果
+│   ├── 软件设计文档.md            # 架构与接口设计
+│   └── 课程报告设计书.md          # 课程项目报告
 └── 部署文档.md                   # 详细部署说明
 ```
 
