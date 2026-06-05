@@ -5,6 +5,7 @@ import cn.hutool.http.HttpResponse;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.itheima.ops.digital.staff.entity.OpsFaq;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,6 +24,9 @@ public class AnythingLLMClient {
 
     @Autowired
     private AnythingLLMProperties properties;
+
+    @Autowired
+    private LocalEmbeddingSearch localEmbeddingSearch;
 
     private static final Pattern FAQ_ANSWER_PATTERN =
             Pattern.compile("答案：(.+?)(?:\n问题：|\\Z)", Pattern.DOTALL);
@@ -49,60 +54,126 @@ public class AnythingLLMClient {
     }
 
     public String chatCompletion(String userQuestion) {
-        log.info("=== 调用AnythingLLM RAG知识库 ===");
+        log.info("=== 智能问答（非流式）===");
         log.info("用户问题: {}", userQuestion);
 
-        String rawBody = chatCompletionRaw(userQuestion);
-
-        String directAnswer = extractAnswer(rawBody);
-        if (directAnswer != null) {
-            return directAnswer;
+        // Step 1: try local embedding search
+        LocalEmbeddingSearch.SearchResult localResult = localEmbeddingSearch.search(userQuestion);
+        if (localResult != null) {
+            log.info("本地嵌入匹配成功，直接返回知识库答案");
+            return localResult.faq().getAnswer();
         }
 
-        JSONObject respJson = JSONUtil.parseObj(rawBody);
-        return respJson.getStr("textResponse");
+        // Step 2: try AnythingLLM RAG
+        try {
+            String rawBody = chatCompletionRaw(userQuestion);
+            String directAnswer = extractAnswer(rawBody);
+            if (directAnswer != null) {
+                return directAnswer;
+            }
+            JSONObject respJson = JSONUtil.parseObj(rawBody);
+            String textResponse = respJson.getStr("textResponse");
+            if (textResponse != null && !textResponse.isEmpty()) {
+                return textResponse;
+            }
+        } catch (Exception e) {
+            log.warn("AnythingLLM调用失败，回退到Ollama: {}", e.getMessage());
+        }
+
+        // Step 3: fallback to Ollama with local FAQ context
+        return callOllamaSync(userQuestion);
+    }
+
+    /**
+     * 同步调用Ollama（非流式，作为AnythingLLM不可用时的回退方案）
+     */
+    private String callOllamaSync(String userQuestion) {
+        log.info("Ollama同步问答: {}", userQuestion);
+        JSONObject body = JSONUtil.createObj();
+        body.set("model", "qwen2.5:3b");
+        body.set("stream", false);
+        JSONArray messages = JSONUtil.createArray();
+        messages.add(JSONUtil.createObj().set("role", "user").set("content", userQuestion));
+        body.set("messages", messages);
+
+        try (HttpResponse response = HttpRequest.post("http://localhost:11434/api/chat")
+                .header("Content-Type", "application/json")
+                .timeout(180000)
+                .body(body.toString())
+                .execute()) {
+            JSONObject data = JSONUtil.parseObj(response.body());
+            JSONObject msg = data.getJSONObject("message");
+            return msg != null ? msg.getStr("content", "抱歉，无法获取回答。") : "抱歉，无法获取回答。";
+        } catch (Exception e) {
+            log.error("Ollama同步调用失败", e);
+            return "抱歉，大模型服务暂时不可用，请稍后重试。";
+        }
     }
 
     public void chatCompletionStream(String userQuestion, Consumer<String> onChunk,
                                       Runnable onComplete, Consumer<Exception> onError) {
-        // Step 1: query AnythingLLM to get sources and check confidence
-        String rawBody;
-        try {
-            rawBody = chatCompletionRaw(userQuestion);
-        } catch (Exception e) {
-            log.error("查询AnythingLLM失败", e);
-            onError.accept(e);
-            return;
-        }
+        log.info("=== 智能问答（流式）===");
+        log.info("用户问题: {}", userQuestion);
 
-        // Step 2: check for high-confidence FAQ match
-        String directAnswer = extractAnswer(rawBody);
-        if (directAnswer != null) {
-            // send answer as single chunk (it's exact FAQ match, instant response)
-            onChunk.accept(directAnswer);
+        // Step 1: try local embedding search for high-confidence FAQ match
+        LocalEmbeddingSearch.SearchResult localResult = localEmbeddingSearch.search(userQuestion);
+        if (localResult != null) {
+            log.info("本地嵌入匹配成功[{}], 直接返回知识库答案", String.format("%.3f", localResult.score()));
+            onChunk.accept(localResult.faq().getAnswer());
             onComplete.run();
             return;
         }
 
-        // Step 3: low confidence — extract context and call Ollama with token-level streaming
-        JSONObject respJson = JSONUtil.parseObj(rawBody);
-        JSONArray sources = respJson.getJSONArray("sources");
+        // Step 2: try AnythingLLM RAG
+        try {
+            String rawBody = chatCompletionRaw(userQuestion);
+            String directAnswer = extractAnswer(rawBody);
+            if (directAnswer != null) {
+                onChunk.accept(directAnswer);
+                onComplete.run();
+                return;
+            }
 
-        StringBuilder contextBuilder = new StringBuilder();
-        if (sources != null) {
-            for (int i = 0; i < sources.size(); i++) {
-                JSONObject source = sources.getJSONObject(i);
-                String text = source.getStr("text", "");
-                if (text != null && !text.isEmpty()) {
-                    contextBuilder.append(text).append("\n\n");
+            // Extract context from AnythingLLM sources
+            JSONObject respJson = JSONUtil.parseObj(rawBody);
+            JSONArray sources = respJson.getJSONArray("sources");
+            StringBuilder contextBuilder = new StringBuilder();
+            if (sources != null) {
+                for (int i = 0; i < sources.size(); i++) {
+                    JSONObject source = sources.getJSONObject(i);
+                    String text = source.getStr("text", "");
+                    if (text != null && !text.isEmpty()) {
+                        contextBuilder.append(text).append("\n\n");
+                    }
                 }
             }
+
+            if (contextBuilder.length() > 0) {
+                String systemPrompt = "你是一个运维数字员工助手。请严格引用知识库中的答案回答用户问题。";
+                callOllamaStream(systemPrompt,
+                        "知识库参考内容：\n" + contextBuilder + "用户问题：" + userQuestion,
+                        onChunk, onComplete, onError);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("AnythingLLM查询失败，使用本地嵌入上下文: {}", e.getMessage());
         }
+
+        // Step 3: fallback — use local embedding context + Ollama
+        List<com.itheima.ops.digital.staff.entity.OpsFaq> relatedFaqs =
+                localEmbeddingSearch.searchContext(userQuestion, 3);
 
         String systemPrompt = "你是一个运维数字员工助手。如果用户问题与提供的知识库内容相关，请严格引用知识库中的答案。如果知识库中没有相关信息，请以专业的方式回答用户问题。";
         String userPrompt;
-        if (contextBuilder.length() > 0) {
-            userPrompt = "知识库参考内容：\n" + contextBuilder + "用户问题：" + userQuestion;
+        if (!relatedFaqs.isEmpty()) {
+            StringBuilder ctx = new StringBuilder();
+            ctx.append("知识库参考内容：\n");
+            for (com.itheima.ops.digital.staff.entity.OpsFaq faq : relatedFaqs) {
+                ctx.append("问题：").append(faq.getQuestion()).append("\n");
+                ctx.append("答案：").append(faq.getAnswer()).append("\n\n");
+            }
+            userPrompt = ctx + "用户问题：" + userQuestion;
+            log.info("使用本地嵌入上下文增强Ollama，共{}条FAQ", relatedFaqs.size());
         } else {
             userPrompt = userQuestion;
         }

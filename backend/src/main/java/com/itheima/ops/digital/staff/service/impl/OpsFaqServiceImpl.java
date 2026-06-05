@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.itheima.ops.digital.staff.entity.OpsFaq;
 import com.itheima.ops.digital.staff.integration.anythingllm.AnythingLLMClient;
+import com.itheima.ops.digital.staff.integration.anythingllm.LocalEmbeddingSearch;
 import com.itheima.ops.digital.staff.mapper.OpsFaqMapper;
 import com.itheima.ops.digital.staff.service.OpsFaqService;
 import org.apache.commons.lang3.StringUtils;
@@ -21,6 +22,9 @@ public class OpsFaqServiceImpl extends ServiceImpl<OpsFaqMapper, OpsFaq> impleme
 
     @Autowired
     private AnythingLLMClient anythingLLMClient;
+
+    @Autowired
+    private LocalEmbeddingSearch localEmbeddingSearch;
 
     @Override
     public IPage<OpsFaq> pageQuery(Integer pageNum, Integer pageSize, String category, String keyword) {
@@ -77,6 +81,33 @@ public class OpsFaqServiceImpl extends ServiceImpl<OpsFaqMapper, OpsFaq> impleme
         result.put("total", faqList.size());
         result.put("success", successCount);
         result.put("fail", failCount);
+        return result;
+    }
+
+    @Override
+    public boolean save(OpsFaq faq) {
+        boolean result = super.save(faq);
+        if (result) {
+            localEmbeddingSearch.addOrUpdateFaq(faq);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean updateById(OpsFaq faq) {
+        boolean result = super.updateById(faq);
+        if (result) {
+            localEmbeddingSearch.addOrUpdateFaq(faq);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean removeById(java.io.Serializable id) {
+        boolean result = super.removeById(id);
+        if (result) {
+            localEmbeddingSearch.refreshEmbeddings();
+        }
         return result;
     }
 }

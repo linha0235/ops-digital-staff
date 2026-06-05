@@ -46,6 +46,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       DISABLE_TELEMETRY: "true"
+      STORAGE_DIR: "/app/server/storage"
     volumes:
       - anythingllm-storage:/app/server/storage
     restart: always
