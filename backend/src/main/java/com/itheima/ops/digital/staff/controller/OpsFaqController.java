@@ -71,7 +71,7 @@ public class OpsFaqController {
     @PostMapping("/chat/stream")
     public SseEmitter chatStream(@RequestBody java.util.Map<String, String> req) {
         String question = req != null ? req.getOrDefault("question", "") : "";
-        SseEmitter emitter = new SseEmitter(180000L);
+        SseEmitter emitter = new SseEmitter(300000L);
         new Thread(() -> {
             try {
                 opsFaqService.chatQueryStream(question,

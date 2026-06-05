@@ -185,6 +185,16 @@ const send = async () => {
         if (content) typewriter(content)
       }
     }
+    // flush decoder (handles multi-byte UTF-8 residuals) and process remaining buffer
+    buffer += decoder.decode()
+    const remaining = buffer.trim()
+    if (remaining) {
+      const dataLines = remaining.split('\n')
+        .filter(l => l.startsWith('data:'))
+        .map(l => l.substring(5).trim())
+      const content = dataLines.join('\n')
+      if (content) typewriter(content)
+    }
     // stream ended — wait for typewriter to finish
     await finishTyping()
   } catch (e) {

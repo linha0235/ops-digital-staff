@@ -95,10 +95,13 @@ public class AnythingLLMClient {
         JSONArray messages = JSONUtil.createArray();
         messages.add(JSONUtil.createObj().set("role", "user").set("content", userQuestion));
         body.set("messages", messages);
+        body.set("options", JSONUtil.createObj()
+                .set("num_predict", 2048)
+                .set("temperature", 0.7));
 
         try (HttpResponse response = HttpRequest.post("http://localhost:11434/api/chat")
                 .header("Content-Type", "application/json")
-                .timeout(180000)
+                .timeout(300000)
                 .body(body.toString())
                 .execute()) {
             JSONObject data = JSONUtil.parseObj(response.body());
@@ -190,7 +193,7 @@ public class AnythingLLMClient {
         HttpResponse response = HttpRequest.post(url)
                 .header("Authorization", "Bearer " + properties.getApiKey())
                 .header("Content-Type", "application/json")
-                .timeout(180000)
+                .timeout(300000)
                 .body(requestBody.toString())
                 .execute();
         return response.body();
@@ -206,10 +209,13 @@ public class AnythingLLMClient {
         messages.add(JSONUtil.createObj().set("role", "system").set("content", systemPrompt));
         messages.add(JSONUtil.createObj().set("role", "user").set("content", userPrompt));
         body.set("messages", messages);
+        body.set("options", JSONUtil.createObj()
+                .set("num_predict", 2048)
+                .set("temperature", 0.7));
 
         try (HttpResponse response = HttpRequest.post("http://localhost:11434/api/chat")
                 .header("Content-Type", "application/json")
-                .timeout(180000)
+                .timeout(300000)
                 .body(body.toString())
                 .execute();
              BufferedReader reader = new BufferedReader(
